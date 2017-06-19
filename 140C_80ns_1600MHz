@@ -1,0 +1,1126 @@
+'''
+Created on Jun 12, 2017
+
+@author: Bojan
+'''
+
+
+import pandas as pd
+from matplotlib import pyplot as plt
+
+CH2_offset=-0.87 #mV
+CH3_offset=-0.36 #mV
+CH4_offset= 0.93 #mV
+
+APD_init=10 #ns
+PIN_init=5 #ns
+
+REF_scal=1.05
+PROB_scal=1.72
+CONJ_scal=1.52
+
+SENS_conj=46.816 #uW/mV
+SENS_prob=46.992 #uW/mV
+SENS_apd=1.08  #uW/mV
+
+coeff_ref=REF_scal*SENS_apd
+coeff_probPIN=PROB_scal*SENS_prob
+coeff_probAPD=PROB_scal*SENS_apd
+coeff_conj=CONJ_scal*SENS_conj
+
+xTPD=[-14,-12,-10,-8,-6,-4,-2,0,2,4,6,8,10,12]
+prob_del_list=[]
+conj_delay_list=[]
+prob_wid_list=[]
+conj_wid_list=[]
+prob_dist_list=[]
+conj_dist_list=[]
+Gprob_list=[]
+Gconj_list=[]
+frac_prob_list=[]
+frac_conj_list=[]
+
+
+
+
+def width(X,Y):
+
+    '''
+    Returns FWHM of a peak
+    '''
+    Xlist=[]
+    Ylist=[]
+    for x in X:
+        Xlist.append(x)
+    for y in Y:
+        Ylist.append(y)  
+    imax=Ylist.index(max(Ylist))    
+    temp=max(Ylist)
+    
+    median=(max(Ylist)+Ylist[2450])/2
+    for i in range(int(imax)):
+        if abs(Ylist[i]-median)<temp:
+            ind1=i
+            temp=abs(Ylist[i]-median)
+    temp=max(Ylist)
+    for j in range(int(imax),len(Ylist)):
+        if abs(Ylist[j]-median)<temp:
+            ind2=j
+            temp=abs(Ylist[j]-median)
+    
+    width=abs(Xlist[ind2]-Xlist[ind1])
+    return(width,ind1,ind2,median)
+
+#--------------------------------------
+
+plt.figure('IMPULS 140C, OPD=1600MHz, t=80ns')
+plt.suptitle('Variranje TPD, OPD=1600MHz, t=80ns, T=140C, Ipump=180mW, 3 mrad',fontsize=22)
+
+#--------------------------------------------------------------------------
+
+
+plt.subplot(351)
+plt.title('TPD=-14MHz,')
+ 
+ref=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-14_Ch2.csv',sep=',',header=None,engine='python')
+ref=ref.drop(ref.columns[[0, 1, 2]], axis=1)
+ref.columns=['time','signal']
+ref['time']=ref['time']*1000000000
+ref['signal']=((ref['signal']*1000)-CH2_offset)*coeff_ref
+ 
+prob=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-14_Ch3.csv',sep=',',header=None,engine='python')
+prob=prob.drop(prob.columns[[0, 1, 2]], axis=1)
+prob.columns=['time','signal']
+prob['signal']=prob['signal']-prob['signal'][50]
+prob['time']=(prob['time']*1000000000)-APD_init
+prob['signal']=((prob['signal']*1000)-CH3_offset)*coeff_probAPD
+ 
+conj=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-14_Ch4.csv',sep=',',header=None,engine='python')
+conj=conj.drop(conj.columns[[0, 1, 2]], axis=1)
+conj.columns=['time','signal']
+#conj['signal']=conj['signal']-conj['signal'][50]
+conj['time']=(conj['time']*1000000000)-PIN_init
+conj['signal']=((conj['signal']*1000)-CH4_offset)*coeff_conj
+ 
+iref=ref['signal'].idxmax()
+iprob=prob['signal'].idxmax()
+iconj=conj['signal'].idxmax()
+delay_prob=prob['time'][iprob]-ref['time'][iref]
+delay_conj=conj['time'][iconj]-ref['time'][iref]
+ 
+refW=width(ref['time'],ref['signal'])[0]
+probW=width(prob['time'],prob['signal'])[0]
+conjW=width(conj['time'],conj['signal'])[0]
+probDist=(probW/refW)*100
+conjDist=(conjW/refW)*100
+ 
+Gprob=max(prob['signal'])/max(ref['signal'])
+Gconj=max(conj['signal'])/max(ref['signal'])
+ 
+Pfrac=delay_prob/refW
+Cfrac=delay_conj/refW
+ 
+prob_del_list.append(delay_prob)
+conj_delay_list.append(delay_conj)
+prob_wid_list.append(probW)
+conj_wid_list.append(conjW)
+prob_dist_list.append(probDist)
+conj_dist_list.append(conjDist)
+Gprob_list.append(Gprob)
+Gconj_list.append(Gconj)
+frac_prob_list.append(Pfrac)
+frac_conj_list.append(Cfrac)
+ 
+plt.plot(ref['time'],ref['signal'],label='Ref')
+plt.plot(prob['time'],(1/Gprob)*prob['signal'],label='Prob',color='r')
+plt.plot(conj['time'],(1/Gconj)*conj['signal'],label='Conj',color='g')
+plt.text(-180,23,'P del = '+str(round(delay_prob))+' ns\nC del = '+str(round(delay_conj))+' ns',fontsize=12)
+plt.text(-185,15,'P wid = '+str(round(probW))+' ns\nP dist = '+str(round(probDist))+'%\nC dist= '+str(round(conjDist))+'%',fontsize=12)
+plt.text(-160,10,'Gp = ' +str(round(Gprob,1))+'\nGc = '+str(round(Gconj,1)),fontsize=12)
+plt.text(-170,5,'Pfrac = '+str(round(Pfrac,2))+'\nCfrac = '+str(round(Cfrac,2)),fontsize=12)
+#plt.xlabel('Time [ns]',fontsize=12)
+plt.ylabel('Ref intensity [uW]',fontsize=12)
+plt.xlim(xmin=-195,xmax=600)
+plt.ylim(ymin=-2,ymax=28)
+plt.legend(prop={'size':12},frameon=False)
+
+
+#==============================================================================
+
+plt.subplot(352)
+plt.title('TPD=-12MHz,')
+
+ref=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-12_Ch2.csv',sep=',',header=None,engine='python')
+ref=ref.drop(ref.columns[[0, 1, 2]], axis=1)
+ref.columns=['time','signal']
+ref['time']=ref['time']*1000000000
+ref['signal']=((ref['signal']*1000)-CH2_offset)*coeff_ref
+
+prob=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-12_Ch3.csv',sep=',',header=None,engine='python')
+prob=prob.drop(prob.columns[[0, 1, 2]], axis=1)
+prob.columns=['time','signal']
+prob['signal']=prob['signal']-prob['signal'][50]
+prob['time']=(prob['time']*1000000000)-APD_init
+prob['signal']=((prob['signal']*1000)-CH3_offset)*coeff_probAPD
+
+conj=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-12_Ch4.csv',sep=',',header=None,engine='python')
+conj=conj.drop(conj.columns[[0, 1, 2]], axis=1)
+conj.columns=['time','signal']
+#conj['signal']=conj['signal']-conj['signal'][50]
+conj['time']=(conj['time']*1000000000)-PIN_init
+conj['signal']=((conj['signal']*1000)-CH4_offset)*coeff_conj
+
+iref=ref['signal'].idxmax()
+iprob=prob['signal'].idxmax()
+iconj=conj['signal'].idxmax()
+delay_prob=prob['time'][iprob]-ref['time'][iref]
+delay_conj=conj['time'][iconj]-ref['time'][iref]
+
+refW=width(ref['time'],ref['signal'])[0]
+probW=width(prob['time'],prob['signal'])[0]
+conjW=width(conj['time'],conj['signal'])[0]
+probDist=(probW/refW)*100
+conjDist=(conjW/refW)*100
+
+Gprob=max(prob['signal'])/max(ref['signal'])
+Gconj=max(conj['signal'])/max(ref['signal'])
+
+Pfrac=delay_prob/refW
+Cfrac=delay_conj/refW
+
+prob_del_list.append(delay_prob)
+conj_delay_list.append(delay_conj)
+prob_wid_list.append(probW)
+conj_wid_list.append(conjW)
+prob_dist_list.append(probDist)
+conj_dist_list.append(conjDist)
+Gprob_list.append(Gprob)
+Gconj_list.append(Gconj)
+frac_prob_list.append(Pfrac)
+frac_conj_list.append(Cfrac)
+
+plt.plot(ref['time'],ref['signal'],label='Ref')
+plt.plot(prob['time'],(1/Gprob)*prob['signal'],label='Prob',color='r')
+plt.plot(conj['time'],(1/Gconj)*conj['signal'],label='Conj',color='g')
+plt.text(-180,23,'P del = '+str(round(delay_prob))+' ns\nC del = '+str(round(delay_conj))+' ns',fontsize=12)
+plt.text(-185,15,'P wid = '+str(round(probW))+' ns\nP dist = '+str(round(probDist))+'%\nC dist= '+str(round(conjDist))+'%',fontsize=12)
+plt.text(-160,10,'Gp = ' +str(round(Gprob,1))+'\nGc = '+str(round(Gconj,1)),fontsize=12)
+plt.text(-170,5,'Pfrac = '+str(round(Pfrac,2))+'\nCfrac = '+str(round(Cfrac,2)),fontsize=12)
+#plt.xlabel('Time [ns]',fontsize=12)
+plt.ylabel('Ref intensity [uW]',fontsize=12)
+plt.xlim(xmin=-195,xmax=600)
+plt.ylim(ymin=-2,ymax=28)
+plt.legend(prop={'size':12},frameon=False)
+
+#==============================================================================
+
+plt.subplot(353)
+plt.title('TPD=-10MHz,')
+
+ref=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-10_Ch2.csv',sep=',',header=None,engine='python')
+ref=ref.drop(ref.columns[[0, 1, 2]], axis=1)
+ref.columns=['time','signal']
+ref['time']=ref['time']*1000000000
+ref['signal']=((ref['signal']*1000)-CH2_offset)*coeff_ref
+
+prob=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-10_Ch3.csv',sep=',',header=None,engine='python')
+prob=prob.drop(prob.columns[[0, 1, 2]], axis=1)
+prob.columns=['time','signal']
+prob['signal']=prob['signal']-prob['signal'][50]
+prob['time']=(prob['time']*1000000000)-APD_init
+prob['signal']=((prob['signal']*1000)-CH3_offset)*coeff_probAPD
+
+conj=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-10_Ch4.csv',sep=',',header=None,engine='python')
+conj=conj.drop(conj.columns[[0, 1, 2]], axis=1)
+conj.columns=['time','signal']
+#conj['signal']=conj['signal']-conj['signal'][50]
+conj['time']=(conj['time']*1000000000)-PIN_init
+conj['signal']=((conj['signal']*1000)-CH4_offset)*coeff_conj
+
+iref=ref['signal'].idxmax()
+iprob=prob['signal'].idxmax()
+iconj=conj['signal'].idxmax()
+delay_prob=prob['time'][iprob]-ref['time'][iref]
+delay_conj=conj['time'][iconj]-ref['time'][iref]
+
+refW=width(ref['time'],ref['signal'])[0]
+probW=width(prob['time'],prob['signal'])[0]
+conjW=width(conj['time'],conj['signal'])[0]
+probDist=(probW/refW)*100
+conjDist=(conjW/refW)*100
+
+Gprob=max(prob['signal'])/max(ref['signal'])
+Gconj=max(conj['signal'])/max(ref['signal'])
+
+Pfrac=delay_prob/refW
+Cfrac=delay_conj/refW
+
+prob_del_list.append(delay_prob)
+conj_delay_list.append(delay_conj)
+prob_wid_list.append(probW)
+conj_wid_list.append(conjW)
+prob_dist_list.append(probDist)
+conj_dist_list.append(conjDist)
+Gprob_list.append(Gprob)
+Gconj_list.append(Gconj)
+frac_prob_list.append(Pfrac)
+frac_conj_list.append(Cfrac)
+
+plt.plot(ref['time'],ref['signal'],label='Ref')
+plt.plot(prob['time'],(1/Gprob)*prob['signal'],label='Prob',color='r')
+plt.plot(conj['time'],(1/Gconj)*conj['signal'],label='Conj',color='g')
+plt.text(-180,23,'P del = '+str(round(delay_prob))+' ns\nC del = '+str(round(delay_conj))+' ns',fontsize=12)
+plt.text(-185,15,'P wid = '+str(round(probW))+' ns\nP dist = '+str(round(probDist))+'%\nC dist= '+str(round(conjDist))+'%',fontsize=12)
+plt.text(-160,10,'Gp = ' +str(round(Gprob,1))+'\nGc = '+str(round(Gconj,1)),fontsize=12)
+plt.text(-170,5,'Pfrac = '+str(round(Pfrac,2))+'\nCfrac = '+str(round(Cfrac,2)),fontsize=12)
+#plt.xlabel('Time [ns]',fontsize=12)
+plt.ylabel('Ref intensity [uW]',fontsize=12)
+plt.xlim(xmin=-195,xmax=600)
+plt.ylim(ymin=-2,ymax=28)
+plt.legend(prop={'size':12},frameon=False)
+
+#==============================================================================
+
+plt.subplot(354)
+plt.title('TPD=-8MHz,')
+
+ref=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-8_Ch2.csv',sep=',',header=None,engine='python')
+ref=ref.drop(ref.columns[[0, 1, 2]], axis=1)
+ref.columns=['time','signal']
+ref['time']=ref['time']*1000000000
+ref['signal']=((ref['signal']*1000)-CH2_offset)*coeff_ref
+
+prob=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-8_Ch3.csv',sep=',',header=None,engine='python')
+prob=prob.drop(prob.columns[[0, 1, 2]], axis=1)
+prob.columns=['time','signal']
+#prob['signal']=prob['signal']-prob['signal'][50]
+prob['time']=(prob['time']*1000000000)-APD_init
+prob['signal']=((prob['signal']*1000)-CH3_offset)*coeff_probAPD
+
+conj=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-8_Ch4.csv',sep=',',header=None,engine='python')
+conj=conj.drop(conj.columns[[0, 1, 2]], axis=1)
+conj.columns=['time','signal']
+#conj['signal']=conj['signal']-conj['signal'][50]
+conj['time']=(conj['time']*1000000000)-PIN_init
+conj['signal']=((conj['signal']*1000)-CH4_offset)*coeff_conj
+
+iref=ref['signal'].idxmax()
+iprob=prob['signal'].idxmax()
+iconj=conj['signal'].idxmax()
+delay_prob=prob['time'][iprob]-ref['time'][iref]
+delay_conj=conj['time'][iconj]-ref['time'][iref]
+
+refW=width(ref['time'],ref['signal'])[0]
+probW=width(prob['time'],prob['signal'])[0]
+conjW=width(conj['time'],conj['signal'])[0]
+probDist=(probW/refW)*100
+conjDist=(conjW/refW)*100
+
+Gprob=max(prob['signal'])/max(ref['signal'])
+Gconj=max(conj['signal'])/max(ref['signal'])
+
+Pfrac=delay_prob/refW
+Cfrac=delay_conj/refW
+
+prob_del_list.append(delay_prob)
+conj_delay_list.append(delay_conj)
+prob_wid_list.append(probW)
+conj_wid_list.append(conjW)
+prob_dist_list.append(probDist)
+conj_dist_list.append(conjDist)
+Gprob_list.append(Gprob)
+Gconj_list.append(Gconj)
+frac_prob_list.append(Pfrac)
+frac_conj_list.append(Cfrac)
+
+plt.plot(ref['time'],ref['signal'],label='Ref')
+plt.plot(prob['time'],(1/Gprob)*prob['signal'],label='Prob',color='r')
+plt.plot(conj['time'],(1/Gconj)*conj['signal'],label='Conj',color='g')
+plt.text(-180,23,'P del = '+str(round(delay_prob))+' ns\nC del = '+str(round(delay_conj))+' ns',fontsize=12)
+plt.text(-185,15,'P wid = '+str(round(probW))+' ns\nP dist = '+str(round(probDist))+'%\nC dist= '+str(round(conjDist))+'%',fontsize=12)
+plt.text(-160,10,'Gp = ' +str(round(Gprob,1))+'\nGc = '+str(round(Gconj,1)),fontsize=12)
+plt.text(-170,5,'Pfrac = '+str(round(Pfrac,2))+'\nCfrac = '+str(round(Cfrac,2)),fontsize=12)
+#plt.xlabel('Time [ns]',fontsize=12)
+plt.ylabel('Ref intensity [uW]',fontsize=12)
+plt.xlim(xmin=-195,xmax=600)
+plt.ylim(ymin=-2,ymax=28)
+plt.legend(prop={'size':12},frameon=False)
+
+#==============================================================================
+
+plt.subplot(355)
+plt.title('TPD=-6MHz,')
+
+ref=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-6_Ch2.csv',sep=',',header=None,engine='python')
+ref=ref.drop(ref.columns[[0, 1, 2]], axis=1)
+ref.columns=['time','signal']
+ref['time']=ref['time']*1000000000
+ref['signal']=((ref['signal']*1000)-CH2_offset)*coeff_ref
+
+prob=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-6_Ch3.csv',sep=',',header=None,engine='python')
+prob=prob.drop(prob.columns[[0, 1, 2]], axis=1)
+prob.columns=['time','signal']
+prob['signal']=prob['signal']-prob['signal'][50]
+prob['time']=(prob['time']*1000000000)-APD_init
+prob['signal']=((prob['signal']*1000)-CH3_offset)*coeff_probAPD
+
+conj=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-6_Ch4.csv',sep=',',header=None,engine='python')
+conj=conj.drop(conj.columns[[0, 1, 2]], axis=1)
+conj.columns=['time','signal']
+#conj['signal']=conj['signal']-conj['signal'][50]
+conj['time']=(conj['time']*1000000000)-PIN_init
+conj['signal']=((conj['signal']*1000)-CH4_offset)*coeff_conj
+
+iref=ref['signal'].idxmax()
+iprob=prob['signal'].idxmax()
+iconj=conj['signal'].idxmax()
+delay_prob=prob['time'][iprob]-ref['time'][iref]
+delay_conj=conj['time'][iconj]-ref['time'][iref]
+
+refW=width(ref['time'],ref['signal'])[0]
+probW=width(prob['time'],prob['signal'])[0]
+conjW=width(conj['time'],conj['signal'])[0]
+probDist=(probW/refW)*100
+conjDist=(conjW/refW)*100
+
+Gprob=max(prob['signal'])/max(ref['signal'])
+Gconj=max(conj['signal'])/max(ref['signal'])
+
+Pfrac=delay_prob/refW
+Cfrac=delay_conj/refW
+
+prob_del_list.append(delay_prob)
+conj_delay_list.append(delay_conj)
+prob_wid_list.append(probW)
+conj_wid_list.append(conjW)
+prob_dist_list.append(probDist)
+conj_dist_list.append(conjDist)
+Gprob_list.append(Gprob)
+Gconj_list.append(Gconj)
+frac_prob_list.append(Pfrac)
+frac_conj_list.append(Cfrac)
+
+plt.plot(ref['time'],ref['signal'],label='Ref')
+plt.plot(prob['time'],(1/Gprob)*prob['signal'],label='Prob',color='r')
+plt.plot(conj['time'],(1/Gconj)*conj['signal'],label='Conj',color='g')
+plt.text(-180,23,'P del = '+str(round(delay_prob))+' ns\nC del = '+str(round(delay_conj))+' ns',fontsize=12)
+plt.text(-185,15,'P wid = '+str(round(probW))+' ns\nP dist = '+str(round(probDist))+'%\nC dist= '+str(round(conjDist))+'%',fontsize=12)
+plt.text(-160,10,'Gp = ' +str(round(Gprob,1))+'\nGc = '+str(round(Gconj,1)),fontsize=12)
+plt.text(-170,5,'Pfrac = '+str(round(Pfrac,2))+'\nCfrac = '+str(round(Cfrac,2)),fontsize=12)
+#plt.xlabel('Time [ns]',fontsize=12)
+plt.ylabel('Ref intensity [uW]',fontsize=12)
+plt.xlim(xmin=-195,xmax=600)
+plt.ylim(ymin=-2,ymax=28)
+plt.legend(prop={'size':12},frameon=False)
+
+#==============================================================================
+
+plt.subplot(356)
+plt.title('TPD=-4MHz,')
+
+ref=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-4_Ch2.csv',sep=',',header=None,engine='python')
+ref=ref.drop(ref.columns[[0, 1, 2]], axis=1)
+ref.columns=['time','signal']
+ref['time']=ref['time']*1000000000
+ref['signal']=((ref['signal']*1000)-CH2_offset)*coeff_ref
+
+prob=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-4_Ch3.csv',sep=',',header=None,engine='python')
+prob=prob.drop(prob.columns[[0, 1, 2]], axis=1)
+prob.columns=['time','signal']
+prob['signal']=prob['signal']-prob['signal'][50]
+prob['time']=(prob['time']*1000000000)-APD_init
+prob['signal']=((prob['signal']*1000)-CH3_offset)*coeff_probAPD
+
+conj=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-4_Ch4.csv',sep=',',header=None,engine='python')
+conj=conj.drop(conj.columns[[0, 1, 2]], axis=1)
+conj.columns=['time','signal']
+#conj['signal']=conj['signal']-conj['signal'][50]
+conj['time']=(conj['time']*1000000000)-PIN_init
+conj['signal']=((conj['signal']*1000)-CH4_offset)*coeff_conj
+
+iref=ref['signal'].idxmax()
+iprob=prob['signal'].idxmax()
+iconj=conj['signal'].idxmax()
+delay_prob=prob['time'][iprob]-ref['time'][iref]
+delay_conj=conj['time'][iconj]-ref['time'][iref]
+
+refW=width(ref['time'],ref['signal'])[0]
+probW=width(prob['time'],prob['signal'])[0]
+conjW=width(conj['time'],conj['signal'])[0]
+probDist=(probW/refW)*100
+conjDist=(conjW/refW)*100
+
+Gprob=max(prob['signal'])/max(ref['signal'])
+Gconj=max(conj['signal'])/max(ref['signal'])
+
+Pfrac=delay_prob/refW
+Cfrac=delay_conj/refW
+
+prob_del_list.append(delay_prob)
+conj_delay_list.append(delay_conj)
+prob_wid_list.append(probW)
+conj_wid_list.append(conjW)
+prob_dist_list.append(probDist)
+conj_dist_list.append(conjDist)
+Gprob_list.append(Gprob)
+Gconj_list.append(Gconj)
+frac_prob_list.append(Pfrac)
+frac_conj_list.append(Cfrac)
+
+plt.plot(ref['time'],ref['signal'],label='Ref')
+plt.plot(prob['time'],(1/Gprob)*prob['signal'],label='Prob',color='r')
+plt.plot(conj['time'],(1/Gconj)*conj['signal'],label='Conj',color='g')
+plt.text(-180,23,'P del = '+str(round(delay_prob))+' ns\nC del = '+str(round(delay_conj))+' ns',fontsize=12)
+plt.text(-185,15,'P wid = '+str(round(probW))+' ns\nP dist = '+str(round(probDist))+'%\nC dist= '+str(round(conjDist))+'%',fontsize=12)
+plt.text(-160,10,'Gp = ' +str(round(Gprob,1))+'\nGc = '+str(round(Gconj,1)),fontsize=12)
+plt.text(-170,5,'Pfrac = '+str(round(Pfrac,2))+'\nCfrac = '+str(round(Cfrac,2)),fontsize=12)
+#plt.xlabel('Time [ns]',fontsize=12)
+plt.ylabel('Ref intensity [uW]',fontsize=12)
+plt.xlim(xmin=-195,xmax=600)
+plt.ylim(ymin=-2,ymax=28)
+plt.legend(prop={'size':12},frameon=False)
+
+#==============================================================================
+
+plt.subplot(357)
+plt.title('TPD=-2MHz,')
+
+ref=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-2_Ch2.csv',sep=',',header=None,engine='python')
+ref=ref.drop(ref.columns[[0, 1, 2]], axis=1)
+ref.columns=['time','signal']
+ref['time']=ref['time']*1000000000
+ref['signal']=((ref['signal']*1000)-CH2_offset)*coeff_ref
+
+prob=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-2_Ch3.csv',sep=',',header=None,engine='python')
+prob=prob.drop(prob.columns[[0, 1, 2]], axis=1)
+prob.columns=['time','signal']
+prob['signal']=prob['signal']-prob['signal'][50]
+prob['time']=(prob['time']*1000000000)-APD_init
+prob['signal']=((prob['signal']*1000)-CH3_offset)*coeff_probAPD
+
+conj=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/-2_Ch4.csv',sep=',',header=None,engine='python')
+conj=conj.drop(conj.columns[[0, 1, 2]], axis=1)
+conj.columns=['time','signal']
+#conj['signal']=conj['signal']-conj['signal'][50]
+conj['time']=(conj['time']*1000000000)-PIN_init
+conj['signal']=((conj['signal']*1000)-CH4_offset)*coeff_conj
+
+iref=ref['signal'].idxmax()
+iprob=prob['signal'].idxmax()
+iconj=conj['signal'].idxmax()
+delay_prob=prob['time'][iprob]-ref['time'][iref]
+delay_conj=conj['time'][iconj]-ref['time'][iref]
+
+refW=width(ref['time'],ref['signal'])[0]
+probW=width(prob['time'],prob['signal'])[0]
+conjW=width(conj['time'],conj['signal'])[0]
+probDist=(probW/refW)*100
+conjDist=(conjW/refW)*100
+
+Gprob=max(prob['signal'])/max(ref['signal'])
+Gconj=max(conj['signal'])/max(ref['signal'])
+
+Pfrac=delay_prob/refW
+Cfrac=delay_conj/refW
+
+prob_del_list.append(delay_prob)
+conj_delay_list.append(delay_conj)
+prob_wid_list.append(probW)
+conj_wid_list.append(conjW)
+prob_dist_list.append(probDist)
+conj_dist_list.append(conjDist)
+Gprob_list.append(Gprob)
+Gconj_list.append(Gconj)
+frac_prob_list.append(Pfrac)
+frac_conj_list.append(Cfrac)
+
+plt.plot(ref['time'],ref['signal'],label='Ref')
+plt.plot(prob['time'],(1/Gprob)*prob['signal'],label='Prob',color='r')
+plt.plot(conj['time'],(1/Gconj)*conj['signal'],label='Conj',color='g')
+plt.text(-180,23,'P del = '+str(round(delay_prob))+' ns\nC del = '+str(round(delay_conj))+' ns',fontsize=12)
+plt.text(-185,15,'P wid = '+str(round(probW))+' ns\nP dist = '+str(round(probDist))+'%\nC dist= '+str(round(conjDist))+'%',fontsize=12)
+plt.text(-160,10,'Gp = ' +str(round(Gprob,1))+'\nGc = '+str(round(Gconj,1)),fontsize=12)
+plt.text(-170,5,'Pfrac = '+str(round(Pfrac,2))+'\nCfrac = '+str(round(Cfrac,2)),fontsize=12)
+#plt.xlabel('Time [ns]',fontsize=12)
+plt.ylabel('Ref intensity [uW]',fontsize=12)
+plt.xlim(xmin=-195,xmax=600)
+plt.ylim(ymin=-2,ymax=28)
+plt.legend(prop={'size':12},frameon=False)
+
+#==============================================================================
+
+plt.subplot(358)
+plt.title('TPD=0MHz,')
+
+ref=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/0_Ch2.csv',sep=',',header=None,engine='python')
+ref=ref.drop(ref.columns[[0, 1, 2]], axis=1)
+ref.columns=['time','signal']
+ref['time']=ref['time']*1000000000
+ref['signal']=((ref['signal']*1000)-CH2_offset)*coeff_ref
+
+prob=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/0_Ch3.csv',sep=',',header=None,engine='python')
+prob=prob.drop(prob.columns[[0, 1, 2]], axis=1)
+prob.columns=['time','signal']
+prob['signal']=prob['signal']-prob['signal'][50]
+prob['time']=(prob['time']*1000000000)-APD_init
+prob['signal']=((prob['signal']*1000)-CH3_offset)*coeff_probAPD
+
+conj=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/0_Ch4.csv',sep=',',header=None,engine='python')
+conj=conj.drop(conj.columns[[0, 1, 2]], axis=1)
+conj.columns=['time','signal']
+#conj['signal']=conj['signal']-conj['signal'][50]
+conj['time']=(conj['time']*1000000000)-PIN_init
+conj['signal']=((conj['signal']*1000)-CH4_offset)*coeff_conj
+
+iref=ref['signal'].idxmax()
+iprob=prob['signal'].idxmax()
+iconj=conj['signal'].idxmax()
+delay_prob=prob['time'][iprob]-ref['time'][iref]
+delay_conj=conj['time'][iconj]-ref['time'][iref]
+
+refW=width(ref['time'],ref['signal'])[0]
+probW=width(prob['time'],prob['signal'])[0]
+conjW=width(conj['time'],conj['signal'])[0]
+probDist=(probW/refW)*100
+conjDist=(conjW/refW)*100
+
+Gprob=max(prob['signal'])/max(ref['signal'])
+Gconj=max(conj['signal'])/max(ref['signal'])
+
+Pfrac=delay_prob/refW
+Cfrac=delay_conj/refW
+
+prob_del_list.append(delay_prob)
+conj_delay_list.append(delay_conj)
+prob_wid_list.append(probW)
+conj_wid_list.append(conjW)
+prob_dist_list.append(probDist)
+conj_dist_list.append(conjDist)
+Gprob_list.append(Gprob)
+Gconj_list.append(Gconj)
+frac_prob_list.append(Pfrac)
+frac_conj_list.append(Cfrac)
+
+plt.plot(ref['time'],ref['signal'],label='Ref')
+plt.plot(prob['time'],(1/Gprob)*prob['signal'],label='Prob',color='r')
+plt.plot(conj['time'],(1/Gconj)*conj['signal'],label='Conj',color='g')
+plt.text(-180,23,'P del = '+str(round(delay_prob))+' ns\nC del = '+str(round(delay_conj))+' ns',fontsize=12)
+plt.text(-185,15,'P wid = '+str(round(probW))+' ns\nP dist = '+str(round(probDist))+'%\nC dist= '+str(round(conjDist))+'%',fontsize=12)
+plt.text(-160,10,'Gp = ' +str(round(Gprob,1))+'\nGc = '+str(round(Gconj,1)),fontsize=12)
+plt.text(-170,5,'Pfrac = '+str(round(Pfrac,2))+'\nCfrac = '+str(round(Cfrac,2)),fontsize=12)
+#plt.xlabel('Time [ns]',fontsize=12)
+plt.ylabel('Ref intensity [uW]',fontsize=12)
+plt.xlim(xmin=-195,xmax=600)
+plt.ylim(ymin=-2,ymax=28)
+plt.legend(prop={'size':12},frameon=False)
+
+#==============================================================================
+
+plt.subplot(359)
+plt.title('TPD=+2MHz,')
+
+ref=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/2_Ch2.csv',sep=',',header=None,engine='python')
+ref=ref.drop(ref.columns[[0, 1, 2]], axis=1)
+ref.columns=['time','signal']
+ref['time']=ref['time']*1000000000
+ref['signal']=((ref['signal']*1000)-CH2_offset)*coeff_ref
+
+prob=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/2_Ch3.csv',sep=',',header=None,engine='python')
+prob=prob.drop(prob.columns[[0, 1, 2]], axis=1)
+prob.columns=['time','signal']
+prob['signal']=prob['signal']-prob['signal'][50]
+prob['time']=(prob['time']*1000000000)-APD_init
+prob['signal']=((prob['signal']*1000)-CH3_offset)*coeff_probAPD
+
+conj=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/2_Ch4.csv',sep=',',header=None,engine='python')
+conj=conj.drop(conj.columns[[0, 1, 2]], axis=1)
+conj.columns=['time','signal']
+#conj['signal']=conj['signal']-conj['signal'][50]
+conj['time']=(conj['time']*1000000000)-PIN_init
+conj['signal']=((conj['signal']*1000)-CH4_offset)*coeff_conj
+
+iref=ref['signal'].idxmax()
+iprob=prob['signal'].idxmax()
+iconj=conj['signal'].idxmax()
+delay_prob=prob['time'][iprob]-ref['time'][iref]
+delay_conj=conj['time'][iconj]-ref['time'][iref]
+
+refW=width(ref['time'],ref['signal'])[0]
+probW=width(prob['time'],prob['signal'])[0]
+conjW=width(conj['time'],conj['signal'])[0]
+probDist=(probW/refW)*100
+conjDist=(conjW/refW)*100
+
+Gprob=max(prob['signal'])/max(ref['signal'])
+Gconj=max(conj['signal'])/max(ref['signal'])
+
+Pfrac=delay_prob/refW
+Cfrac=delay_conj/refW
+
+prob_del_list.append(delay_prob)
+conj_delay_list.append(delay_conj)
+prob_wid_list.append(probW)
+conj_wid_list.append(conjW)
+prob_dist_list.append(probDist)
+conj_dist_list.append(conjDist)
+Gprob_list.append(Gprob)
+Gconj_list.append(Gconj)
+frac_prob_list.append(Pfrac)
+frac_conj_list.append(Cfrac)
+
+plt.plot(ref['time'],ref['signal'],label='Ref')
+plt.plot(prob['time'],(1/Gprob)*prob['signal'],label='Prob',color='r')
+plt.plot(conj['time'],(1/Gconj)*conj['signal'],label='Conj',color='g')
+plt.text(-180,23,'P del = '+str(round(delay_prob))+' ns\nC del = '+str(round(delay_conj))+' ns',fontsize=12)
+plt.text(-185,15,'P wid = '+str(round(probW))+' ns\nP dist = '+str(round(probDist))+'%\nC dist= '+str(round(conjDist))+'%',fontsize=12)
+plt.text(-160,10,'Gp = ' +str(round(Gprob,1))+'\nGc = '+str(round(Gconj,1)),fontsize=12)
+plt.text(-170,5,'Pfrac = '+str(round(Pfrac,2))+'\nCfrac = '+str(round(Cfrac,2)),fontsize=12)
+#plt.xlabel('Time [ns]',fontsize=12)
+plt.ylabel('Ref intensity [uW]',fontsize=12)
+plt.xlim(xmin=-195,xmax=600)
+plt.ylim(ymin=-2,ymax=28)
+plt.legend(prop={'size':12},frameon=False)
+
+#==============================================================================
+
+plt.subplot(3,5,10)
+plt.title('TPD=+4MHz,')
+
+ref=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/4_Ch2.csv',sep=',',header=None,engine='python')
+ref=ref.drop(ref.columns[[0, 1, 2]], axis=1)
+ref.columns=['time','signal']
+ref['time']=ref['time']*1000000000
+ref['signal']=((ref['signal']*1000)-CH2_offset)*coeff_ref
+
+prob=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/4_Ch3.csv',sep=',',header=None,engine='python')
+prob=prob.drop(prob.columns[[0, 1, 2]], axis=1)
+prob.columns=['time','signal']
+prob['signal']=prob['signal']-prob['signal'][50]
+prob['time']=(prob['time']*1000000000)-APD_init
+prob['signal']=((prob['signal']*1000)-CH3_offset)*coeff_probAPD
+
+conj=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/4_Ch4.csv',sep=',',header=None,engine='python')
+conj=conj.drop(conj.columns[[0, 1, 2]], axis=1)
+conj.columns=['time','signal']
+#conj['signal']=conj['signal']-conj['signal'][50]
+conj['time']=(conj['time']*1000000000)-PIN_init
+conj['signal']=((conj['signal']*1000)-CH4_offset)*coeff_conj
+
+iref=ref['signal'].idxmax()
+iprob=prob['signal'].idxmax()
+iconj=conj['signal'].idxmax()
+delay_prob=prob['time'][iprob]-ref['time'][iref]
+delay_conj=conj['time'][iconj]-ref['time'][iref]
+
+refW=width(ref['time'],ref['signal'])[0]
+probW=width(prob['time'],prob['signal'])[0]
+conjW=width(conj['time'],conj['signal'])[0]
+probDist=(probW/refW)*100
+conjDist=(conjW/refW)*100
+
+Gprob=max(prob['signal'])/max(ref['signal'])
+Gconj=max(conj['signal'])/max(ref['signal'])
+
+Pfrac=delay_prob/refW
+Cfrac=delay_conj/refW
+
+prob_del_list.append(delay_prob)
+conj_delay_list.append(delay_conj)
+prob_wid_list.append(probW)
+conj_wid_list.append(conjW)
+prob_dist_list.append(probDist)
+conj_dist_list.append(conjDist)
+Gprob_list.append(Gprob)
+Gconj_list.append(Gconj)
+frac_prob_list.append(Pfrac)
+frac_conj_list.append(Cfrac)
+
+plt.plot(ref['time'],ref['signal'],label='Ref')
+plt.plot(prob['time'],(1/Gprob)*prob['signal'],label='Prob',color='r')
+plt.plot(conj['time'],(1/Gconj)*conj['signal'],label='Conj',color='g')
+plt.text(-180,23,'P del = '+str(round(delay_prob))+' ns\nC del = '+str(round(delay_conj))+' ns',fontsize=12)
+plt.text(-185,15,'P wid = '+str(round(probW))+' ns\nP dist = '+str(round(probDist))+'%\nC dist= '+str(round(conjDist))+'%',fontsize=12)
+plt.text(-160,10,'Gp = ' +str(round(Gprob,1))+'\nGc = '+str(round(Gconj,1)),fontsize=12)
+plt.text(-170,5,'Pfrac = '+str(round(Pfrac,2))+'\nCfrac = '+str(round(Cfrac,2)),fontsize=12)
+#plt.xlabel('Time [ns]',fontsize=12)
+plt.ylabel('Ref intensity [uW]',fontsize=12)
+plt.xlim(xmin=-195,xmax=600)
+plt.ylim(ymin=-2,ymax=28)
+plt.legend(prop={'size':12},frameon=False)
+
+#==============================================================================
+
+plt.subplot(3,5,11)
+plt.title('TPD=+6MHz,')
+
+ref=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/6_Ch2.csv',sep=',',header=None,engine='python')
+ref=ref.drop(ref.columns[[0, 1, 2]], axis=1)
+ref.columns=['time','signal']
+ref['time']=ref['time']*1000000000
+ref['signal']=((ref['signal']*1000)-CH2_offset)*coeff_ref
+
+prob=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/6_Ch3.csv',sep=',',header=None,engine='python')
+prob=prob.drop(prob.columns[[0, 1, 2]], axis=1)
+prob.columns=['time','signal']
+prob['signal']=prob['signal']-prob['signal'][50]
+prob['time']=(prob['time']*1000000000)-APD_init
+prob['signal']=((prob['signal']*1000)-CH3_offset)*coeff_probAPD
+
+conj=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/6_Ch4.csv',sep=',',header=None,engine='python')
+conj=conj.drop(conj.columns[[0, 1, 2]], axis=1)
+conj.columns=['time','signal']
+#conj['signal']=conj['signal']-conj['signal'][50]
+conj['time']=(conj['time']*1000000000)-PIN_init
+conj['signal']=((conj['signal']*1000)-CH4_offset)*coeff_conj
+
+iref=ref['signal'].idxmax()
+iprob=prob['signal'].idxmax()
+iconj=conj['signal'].idxmax()
+delay_prob=prob['time'][iprob]-ref['time'][iref]
+delay_conj=conj['time'][iconj]-ref['time'][iref]
+
+refW=width(ref['time'],ref['signal'])[0]
+probW=width(prob['time'],prob['signal'])[0]
+conjW=width(conj['time'],conj['signal'])[0]
+probDist=(probW/refW)*100
+conjDist=(conjW/refW)*100
+
+Gprob=max(prob['signal'])/max(ref['signal'])
+Gconj=max(conj['signal'])/max(ref['signal'])
+
+Pfrac=delay_prob/refW
+Cfrac=delay_conj/refW
+
+prob_del_list.append(delay_prob)
+conj_delay_list.append(delay_conj)
+prob_wid_list.append(probW)
+conj_wid_list.append(conjW)
+prob_dist_list.append(probDist)
+conj_dist_list.append(conjDist)
+Gprob_list.append(Gprob)
+Gconj_list.append(Gconj)
+frac_prob_list.append(Pfrac)
+frac_conj_list.append(Cfrac)
+
+plt.plot(ref['time'],ref['signal'],label='Ref')
+plt.plot(prob['time'],(1/Gprob)*prob['signal'],label='Prob',color='r')
+plt.plot(conj['time'],(1/Gconj)*conj['signal'],label='Conj',color='g')
+plt.text(-180,23,'P del = '+str(round(delay_prob))+' ns\nC del = '+str(round(delay_conj))+' ns',fontsize=12)
+plt.text(-185,15,'P wid = '+str(round(probW))+' ns\nP dist = '+str(round(probDist))+'%\nC dist= '+str(round(conjDist))+'%',fontsize=12)
+plt.text(-160,10,'Gp = ' +str(round(Gprob,1))+'\nGc = '+str(round(Gconj,1)),fontsize=12)
+plt.text(-170,5,'Pfrac = '+str(round(Pfrac,2))+'\nCfrac = '+str(round(Cfrac,2)),fontsize=12)
+plt.xlabel('Time [ns]',fontsize=12)
+plt.ylabel('Ref intensity [uW]',fontsize=12)
+plt.xlim(xmin=-195,xmax=600)
+plt.ylim(ymin=-2,ymax=28)
+plt.legend(prop={'size':12},frameon=False)
+
+#==============================================================================
+
+plt.subplot(3,5,12)
+plt.title('TPD=+8MHz,')
+
+ref=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/8_Ch2.csv',sep=',',header=None,engine='python')
+ref=ref.drop(ref.columns[[0, 1, 2]], axis=1)
+ref.columns=['time','signal']
+ref['time']=ref['time']*1000000000
+ref['signal']=((ref['signal']*1000)-CH2_offset)*coeff_ref
+
+prob=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/8_Ch3.csv',sep=',',header=None,engine='python')
+prob=prob.drop(prob.columns[[0, 1, 2]], axis=1)
+prob.columns=['time','signal']
+prob['signal']=prob['signal']-prob['signal'][50]
+prob['time']=(prob['time']*1000000000)-APD_init
+prob['signal']=((prob['signal']*1000)-CH3_offset)*coeff_probAPD
+
+conj=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/8_Ch4.csv',sep=',',header=None,engine='python')
+conj=conj.drop(conj.columns[[0, 1, 2]], axis=1)
+conj.columns=['time','signal']
+#conj['signal']=conj['signal']-conj['signal'][50]
+conj['time']=(conj['time']*1000000000)-PIN_init
+conj['signal']=((conj['signal']*1000)-CH4_offset)*coeff_conj
+
+iref=ref['signal'].idxmax()
+iprob=prob['signal'].idxmax()
+iconj=conj['signal'].idxmax()
+delay_prob=prob['time'][iprob]-ref['time'][iref]
+delay_conj=conj['time'][iconj]-ref['time'][iref]
+
+refW=width(ref['time'],ref['signal'])[0]
+probW=width(prob['time'],prob['signal'])[0]
+conjW=width(conj['time'],conj['signal'])[0]
+probDist=(probW/refW)*100
+conjDist=(conjW/refW)*100
+
+Gprob=max(prob['signal'])/max(ref['signal'])
+Gconj=max(conj['signal'])/max(ref['signal'])
+
+Pfrac=delay_prob/refW
+Cfrac=delay_conj/refW
+
+prob_del_list.append(delay_prob)
+conj_delay_list.append(delay_conj)
+prob_wid_list.append(probW)
+conj_wid_list.append(conjW)
+prob_dist_list.append(probDist)
+conj_dist_list.append(conjDist)
+Gprob_list.append(Gprob)
+Gconj_list.append(Gconj)
+frac_prob_list.append(Pfrac)
+frac_conj_list.append(Cfrac)
+
+plt.plot(ref['time'],ref['signal'],label='Ref')
+plt.plot(prob['time'],(1/Gprob)*prob['signal'],label='Prob',color='r')
+plt.plot(conj['time'],(1/Gconj)*conj['signal'],label='Conj',color='g')
+plt.text(-180,23,'P del = '+str(round(delay_prob))+' ns\nC del = '+str(round(delay_conj))+' ns',fontsize=12)
+plt.text(-185,15,'P wid = '+str(round(probW))+' ns\nP dist = '+str(round(probDist))+'%\nC dist= '+str(round(conjDist))+'%',fontsize=12)
+plt.text(-160,10,'Gp = ' +str(round(Gprob,1))+'\nGc = '+str(round(Gconj,1)),fontsize=12)
+plt.text(-170,5,'Pfrac = '+str(round(Pfrac,2))+'\nCfrac = '+str(round(Cfrac,2)),fontsize=12)
+plt.xlabel('Time [ns]',fontsize=12)
+plt.ylabel('Ref intensity [uW]',fontsize=12)
+plt.xlim(xmin=-195,xmax=600)
+plt.ylim(ymin=-2,ymax=28)
+plt.legend(prop={'size':12},frameon=False)
+
+#==============================================================================
+
+plt.subplot(3,5,13)
+plt.title('TPD=+10MHz,')
+
+ref=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/10_Ch2.csv',sep=',',header=None,engine='python')
+ref=ref.drop(ref.columns[[0, 1, 2]], axis=1)
+ref.columns=['time','signal']
+ref['time']=ref['time']*1000000000
+ref['signal']=((ref['signal']*1000)-CH2_offset)*coeff_ref
+
+prob=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/10_Ch3.csv',sep=',',header=None,engine='python')
+prob=prob.drop(prob.columns[[0, 1, 2]], axis=1)
+prob.columns=['time','signal']
+prob['signal']=prob['signal']-prob['signal'][50]
+prob['time']=(prob['time']*1000000000)-APD_init
+prob['signal']=((prob['signal']*1000)-CH3_offset)*coeff_probAPD
+
+conj=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/10_Ch4.csv',sep=',',header=None,engine='python')
+conj=conj.drop(conj.columns[[0, 1, 2]], axis=1)
+conj.columns=['time','signal']
+#conj['signal']=conj['signal']-conj['signal'][50]
+conj['time']=(conj['time']*1000000000)-PIN_init
+conj['signal']=((conj['signal']*1000)-CH4_offset)*coeff_conj
+
+iref=ref['signal'].idxmax()
+iprob=prob['signal'].idxmax()
+iconj=conj['signal'].idxmax()
+delay_prob=prob['time'][iprob]-ref['time'][iref]
+delay_conj=conj['time'][iconj]-ref['time'][iref]
+
+refW=width(ref['time'],ref['signal'])[0]
+probW=width(prob['time'],prob['signal'])[0]
+conjW=width(conj['time'],conj['signal'])[0]
+probDist=(probW/refW)*100
+conjDist=(conjW/refW)*100
+
+Gprob=max(prob['signal'])/max(ref['signal'])
+Gconj=max(conj['signal'])/max(ref['signal'])
+
+Pfrac=delay_prob/refW
+Cfrac=delay_conj/refW
+
+prob_del_list.append(delay_prob)
+conj_delay_list.append(delay_conj)
+prob_wid_list.append(probW)
+conj_wid_list.append(conjW)
+prob_dist_list.append(probDist)
+conj_dist_list.append(conjDist)
+Gprob_list.append(Gprob)
+Gconj_list.append(Gconj)
+frac_prob_list.append(Pfrac)
+frac_conj_list.append(Cfrac)
+
+plt.plot(ref['time'],ref['signal'],label='Ref')
+plt.plot(prob['time'],(1/Gprob)*prob['signal'],label='Prob',color='r')
+plt.plot(conj['time'],(1/Gconj)*conj['signal'],label='Conj',color='g')
+plt.text(-180,23,'P del = '+str(round(delay_prob))+' ns\nC del = '+str(round(delay_conj))+' ns',fontsize=12)
+plt.text(-185,15,'P wid = '+str(round(probW))+' ns\nP dist = '+str(round(probDist))+'%\nC dist= '+str(round(conjDist))+'%',fontsize=12)
+plt.text(-160,10,'Gp = ' +str(round(Gprob,1))+'\nGc = '+str(round(Gconj,1)),fontsize=12)
+plt.text(-170,5,'Pfrac = '+str(round(Pfrac,2))+'\nCfrac = '+str(round(Cfrac,2)),fontsize=12)
+plt.xlabel('Time [ns]',fontsize=12)
+plt.ylabel('Ref intensity [uW]',fontsize=12)
+plt.xlim(xmin=-195,xmax=600)
+plt.ylim(ymin=-2,ymax=28)
+plt.legend(prop={'size':12},frameon=False)
+
+#==============================================================================
+
+plt.subplot(3,5,14)
+plt.title('TPD=+12MHz,')
+
+ref=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/12_Ch2.csv',sep=',',header=None,engine='python')
+ref=ref.drop(ref.columns[[0, 1, 2]], axis=1)
+ref.columns=['time','signal']
+ref['time']=ref['time']*1000000000
+ref['signal']=((ref['signal']*1000)-CH2_offset)*coeff_ref
+
+prob=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/12_Ch3.csv',sep=',',header=None,engine='python')
+prob=prob.drop(prob.columns[[0, 1, 2]], axis=1)
+prob.columns=['time','signal']
+prob['signal']=prob['signal']-prob['signal'][50]
+prob['time']=(prob['time']*1000000000)-APD_init
+prob['signal']=((prob['signal']*1000)-CH3_offset)*coeff_probAPD
+
+conj=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/12_Ch4.csv',sep=',',header=None,engine='python')
+conj=conj.drop(conj.columns[[0, 1, 2]], axis=1)
+conj.columns=['time','signal']
+#conj['signal']=conj['signal']-conj['signal'][50]
+conj['time']=(conj['time']*1000000000)-PIN_init
+conj['signal']=((conj['signal']*1000)-CH4_offset)*coeff_conj
+
+iref=ref['signal'].idxmax()
+iprob=prob['signal'].idxmax()
+iconj=conj['signal'].idxmax()
+delay_prob=prob['time'][iprob]-ref['time'][iref]
+delay_conj=conj['time'][iconj]-ref['time'][iref]
+
+refW=width(ref['time'],ref['signal'])[0]
+probW=width(prob['time'],prob['signal'])[0]
+conjW=width(conj['time'],conj['signal'])[0]
+probDist=(probW/refW)*100
+conjDist=(conjW/refW)*100
+
+Gprob=max(prob['signal'])/max(ref['signal'])
+Gconj=max(conj['signal'])/max(ref['signal'])
+
+Pfrac=delay_prob/refW
+Cfrac=delay_conj/refW
+
+prob_del_list.append(delay_prob)
+conj_delay_list.append(delay_conj)
+prob_wid_list.append(probW)
+conj_wid_list.append(conjW)
+prob_dist_list.append(probDist)
+conj_dist_list.append(conjDist)
+Gprob_list.append(Gprob)
+Gconj_list.append(Gconj)
+frac_prob_list.append(Pfrac)
+frac_conj_list.append(Cfrac)
+
+plt.plot(ref['time'],ref['signal'],label='Ref')
+plt.plot(prob['time'],(1/Gprob)*prob['signal'],label='Prob',color='r')
+plt.plot(conj['time'],(1/Gconj)*conj['signal'],label='Conj',color='g')
+plt.text(-180,23,'P del = '+str(round(delay_prob))+' ns\nC del = '+str(round(delay_conj))+' ns',fontsize=12)
+plt.text(-185,15,'P wid = '+str(round(probW))+' ns\nP dist = '+str(round(probDist))+'%\nC dist= '+str(round(conjDist))+'%',fontsize=12)
+plt.text(-160,10,'Gp = ' +str(round(Gprob,1))+'\nGc = '+str(round(Gconj,1)),fontsize=12)
+plt.text(-170,5,'Pfrac = '+str(round(Pfrac,2))+'\nCfrac = '+str(round(Cfrac,2)),fontsize=12)
+plt.xlabel('Time [ns]',fontsize=12)
+plt.ylabel('Ref intensity [uW]',fontsize=12)
+plt.xlim(xmin=-195,xmax=600)
+plt.ylim(ymin=-2,ymax=28)
+plt.legend(prop={'size':12},frameon=False)
+#==============================================================================
+
+#===============================================================================
+# plt.subplot(3,5,15)
+# plt.title('TPD=+10MHz,')
+# 
+# ref=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/10_Ch2.csv',sep=',',header=None,engine='python')
+# ref=ref.drop(ref.columns[[0, 1, 2]], axis=1)
+# ref.columns=['time','signal']
+# ref['time']=ref['time']*1000000000
+# ref['signal']=((ref['signal']*1000)-CH2_offset)*coeff_ref
+# 
+# prob=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/10_Ch3.csv',sep=',',header=None,engine='python')
+# prob=prob.drop(prob.columns[[0, 1, 2]], axis=1)
+# prob.columns=['time','signal']
+# prob['signal']=prob['signal']-prob['signal'][50]
+# prob['time']=(prob['time']*1000000000)-APD_init
+# prob['signal']=((prob['signal']*1000)-CH3_offset)*coeff_probAPD
+# 
+# conj=pd.read_csv('Exp_Data/TPD_80_140C/OPD=1600MHz/10_Ch4.csv',sep=',',header=None,engine='python')
+# conj=conj.drop(conj.columns[[0, 1, 2]], axis=1)
+# conj.columns=['time','signal']
+# #conj['signal']=conj['signal']-conj['signal'][50]
+# conj['time']=(conj['time']*1000000000)-PIN_init
+# conj['signal']=((conj['signal']*1000)-CH4_offset)*coeff_conj
+# 
+# iref=ref['signal'].idxmax()
+# iprob=prob['signal'].idxmax()
+# iconj=conj['signal'].idxmax()
+# delay_prob=prob['time'][iprob]-ref['time'][iref]
+# delay_conj=conj['time'][iconj]-ref['time'][iref]
+# 
+# refW=width(ref['time'],ref['signal'])[0]
+# probW=width(prob['time'],prob['signal'])[0]
+# conjW=width(conj['time'],conj['signal'])[0]
+# probDist=(probW/refW)*100
+# conjDist=(conjW/refW)*100
+# 
+# Gprob=max(prob['signal'])/max(ref['signal'])
+# Gconj=max(conj['signal'])/max(ref['signal'])
+# 
+# Pfrac=delay_prob/refW
+# Cfrac=delay_conj/refW
+# 
+# prob_del_list.append(delay_prob)
+# conj_delay_list.append(delay_conj)
+# prob_wid_list.append(probW)
+# conj_wid_list.append(conjW)
+# prob_dist_list.append(probDist)
+# conj_dist_list.append(conjDist)
+# Gprob_list.append(Gprob)
+# Gconj_list.append(Gconj)
+# frac_prob_list.append(Pfrac)
+# frac_conj_list.append(Cfrac)
+# 
+# plt.plot(ref['time'],ref['signal'],label='Ref')
+# plt.plot(prob['time'],(1/Gprob)*prob['signal'],label='Prob',color='r')
+# plt.plot(conj['time'],(1/Gconj)*conj['signal'],label='Conj',color='g')
+# plt.text(-180,23,'P del = '+str(round(delay_prob))+' ns\nC del = '+str(round(delay_conj))+' ns',fontsize=12)
+# plt.text(-185,15,'P wid = '+str(round(probW))+' ns\nP dist = '+str(round(probDist))+'%\nC dist= '+str(round(conjDist))+'%',fontsize=12)
+# plt.text(-160,10,'Gp = ' +str(round(Gprob,1))+'\nGc = '+str(round(Gconj,1)),fontsize=12)
+# plt.text(-170,5,'Pfrac = '+str(round(Pfrac,2))+'\nCfrac = '+str(round(Cfrac,2)),fontsize=12)
+# plt.xlabel('Time [ns]',fontsize=12)
+# plt.ylabel('Ref intensity [uW]',fontsize=12)
+# plt.xlim(xmin=-195,xmax=600)
+# plt.ylim(ymin=-2,ymax=28)
+# plt.legend(prop={'size':12},frameon=False)
+#===============================================================================
+
+plt.show()
+
+frac_conj_list_100=[]
+frac_prob_list_100=[]
+for i in range(len(frac_conj_list)):
+    frac_conj_list_100.append(frac_conj_list[i]*100)
+    frac_prob_list_100.append(frac_prob_list[i]*100)
+    
+
+plt.figure('Razne zavisnosti')
+plt.suptitle('OPD=1600MHz, t=80ns, T=140C, Ipump=180mW, 3 mrad',fontsize=22)
+
+plt.subplot(221)
+plt.title('Impulsni gain vs TPD')
+plt.plot(xTPD,Gprob_list,label='Prob gain',color='r')
+plt.plot(xTPD,Gconj_list,label='Conj gain',color='g')
+plt.xlabel('Two photon detuning [MHz]',fontsize=14)
+plt.ylabel('Gain',fontsize=14)
+#plt.ylim(ymax=145)
+plt.legend()
+
+plt.subplot(222)
+plt.title('Fractional delay i broadening PROBE vs TPD')
+plt.plot(xTPD,frac_prob_list_100,label='Frac delay(x100)',color='r')
+plt.plot(xTPD,prob_dist_list,label='Broadening (%)',color='g')
+plt.xlabel('Two photon detuning [MHz]',fontsize=14)
+plt.ylabel('Broadening and Frac delay',fontsize=14)
+#plt.ylim(ymax=200)
+plt.legend()
+
+plt.subplot(223)
+plt.title('Fractional delay i broadening CONJUGATE vs TPD')
+plt.plot(xTPD,frac_conj_list_100, label='Frac delay(x100)',color='r')
+plt.plot(xTPD,conj_dist_list, label='Broadening (%)',color='g')
+plt.xlabel('Two photon detuning [MHz]',fontsize=14)
+plt.ylabel('Broadening and Frac delay',fontsize=14)
+plt.ylim(ymax=300)
+plt.legend()
+
+plt.show()
