@@ -1,0 +1,60 @@
+import pandas as pd
+import numpy as np
+from matplotlib import pyplot as plt
+from sklearn import linear_model 
+
+CH3_offset=-0.36 #mV
+CH2_offset=-0.87 #mV
+CH4_offset= 0.93 #mV
+
+voltage=[]
+intensity=[53,79,100,124]
+
+cw=pd.read_csv('Exp_Data/Kalibracija/PINcal_21_06_2017/53uWcw_Ch4.csv',sep=',',header=None,engine='python')
+cw=cw.drop(cw.columns[[0, 1, 2]], axis=1)
+cw.columns=['time','signal']
+cw['time']=cw['time']*1000000000
+cw['signal']=(cw['signal']*1000)-CH4_offset
+cw_mean=(cw['signal'].sum())/(len(cw['signal']))
+voltage.append(cw_mean)
+
+cw=pd.read_csv('Exp_Data/Kalibracija/PINcal_21_06_2017/79uWcw_Ch4.csv',sep=',',header=None,engine='python')
+cw=cw.drop(cw.columns[[0, 1, 2]], axis=1)
+cw.columns=['time','signal']
+cw['time']=cw['time']*1000000000
+cw['signal']=(cw['signal']*1000)-CH4_offset
+cw_mean=(cw['signal'].sum())/(len(cw['signal']))
+voltage.append(cw_mean)
+
+cw=pd.read_csv('Exp_Data/Kalibracija/PINcal_21_06_2017/100uWcw_Ch4.csv',sep=',',header=None,engine='python')
+cw=cw.drop(cw.columns[[0, 1, 2]], axis=1)
+cw.columns=['time','signal']
+cw['time']=cw['time']*1000000000
+cw['signal']=(cw['signal']*1000)-CH4_offset
+cw_mean=(cw['signal'].sum())/(len(cw['signal']))
+voltage.append(cw_mean)
+
+cw=pd.read_csv('Exp_Data/Kalibracija/PINcal_21_06_2017/124uWcw_Ch4.csv',sep=',',header=None,engine='python')
+cw=cw.drop(cw.columns[[0, 1, 2]], axis=1)
+cw.columns=['time','signal']
+cw['time']=cw['time']*1000000000
+cw['signal']=(cw['signal']*1000)-CH4_offset
+cw_mean=(cw['signal'].sum())/(len(cw['signal']))
+voltage.append(cw_mean)
+intensity=np.array(intensity)
+intensity=intensity[:,np.newaxis]
+
+regr=linear_model.LinearRegression()
+regr.fit(intensity, voltage)
+print(regr.intercept_)
+ 
+plt.figure('PINconj kalibracija intenziteta ')
+plt.title('PINconj Kalibracija intenzitet',fontsize=20)
+plt.scatter(intensity,voltage,marker='+')
+plt.plot(intensity,voltage,label='Napon na PINu')
+plt.plot(intensity,(regr.intercept_+regr.coef_*intensity),label='Linearni fit')
+plt.ylabel('Napon [mV]',fontsize=20)
+plt.xlabel('Intenzitet snopa [uW]',fontsize=20)
+plt.text(87,1.4,'Koeficijent  = '+str(round((float(regr.coef_)),4))+' mV/uW\n\nIli inverzno= '+str(round((1/float(regr.coef_)),3))+' uW/mV',fontsize=16)
+plt.legend(loc='upper left')
+plt.show()
